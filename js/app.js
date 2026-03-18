@@ -1014,7 +1014,7 @@ function renderPortfolio(container) {
                     <a href="#contact">Contact</a>
                 </div>
                 <div class="nav-actions">
-                    <div id="greeting" style="font-size: 0.9rem; font-weight: 600; color: var(--brand-main); margin-right: 1rem; display: none;" class="desktop-only text-reveal"></div>
+                    <div id="greeting" style="font-size: 0.9rem; font-weight: 600; color: var(--brand-main); margin-right: 1rem;" class="desktop-only text-reveal"></div>
                     <button class="btn btn-icon-only btn-secondary" id="themeToggle">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -1564,7 +1564,6 @@ function initializeInteractions() {
         else if (hour < 18) msg = "Good Afternoon ☕";
         else msg = "Good Evening 🌙";
         greetingEl.textContent = msg;
-        greetingEl.style.display = 'block';
     }
 
     // 3. Counter Animation
