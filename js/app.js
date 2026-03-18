@@ -1,3 +1,37 @@
+// ----- HELPERS -----
+const getYoutubeId = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+    const match = url.match(regExp);
+    const id = (match && match[2].length === 11) ? match[2] : null;
+    return id;
+};
+
+function showToast(message) {
+    let toast = document.getElementById('syncToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'syncToast';
+        toast.style.cssText = `
+            position: fixed; bottom: 2rem; right: 2rem; 
+            background: var(--brand-main); color: #fff; 
+            padding: 0.8rem 1.5rem; border-radius: 50px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 9999;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(100px); opacity: 0;
+            display: flex; align-items: center; gap: 0.75rem; font-weight: 500;
+        `;
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> ${message}`;
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+    setTimeout(() => {
+        toast.style.transform = 'translateY(100px)';
+        toast.style.opacity = '0';
+    }, 3000);
+}
+
 // ----- STORE.JS -----
 const STORE_KEY = "mohamed_portfolio_data_v11";
 
@@ -35,8 +69,12 @@ const defaultData = {
             description: "Arabic:\nالعنوان: فحص أشعة مقطعية ثلاثي المراحل على الكبد (Tri-phasic CT Liver).\nالتفاصيل الفنية: أشعة مقطعية بالصبغة باستخدام بروتوكول لمراحل الثلاث (Arterial, Portal, Delayed).\n\nEnglish:\nDynamic Tri-phasic CT Scan of the Liver. Multi-detector CT evaluation using a dedicated tri-phasic contrast protocol. Essential for characterizing focal liver lesions.", 
             modalityId: "ct", 
             tags: ["Liver", "Contrast", "Tri-phasic"], 
-            image: "vides/VID_20260315_180402.mp4",
-            gallery: ["vides/VID_20260315_180402.mp4", "vides/VID_20260315_180459.mp4", "vides/VID-20260315-WA0018.mp4"],
+            image: "image/ct_liver_cover_1773868347998.png",
+            gallery: [
+                "https://www.youtube.com/watch?v=kgz9EOF4GQQ",
+                "https://www.youtube.com/shorts/SqejwdoR_VY",
+                "https://www.youtube.com/shorts/aNuCRGH0rZk"
+            ],
             isFeatured: true 
         },
         { id: crypto.randomUUID(), title: "Digital X-ray Lower Limb (Anatomical) 🦴", description: "Standing full-leg digital X-ray for precise limb length evaluation (LLD). Clear anatomical landmarks from pelvis to ankle.", modalityId: "xray", tags: ["X-ray", "LLD", "Anatomical"], image: "image/anatomical angel.png", isFeatured: true },
@@ -72,14 +110,38 @@ const Store = {
     init() {
         if (!localStorage.getItem(STORE_KEY)) {
             localStorage.setItem(STORE_KEY, JSON.stringify(defaultData));
+        } else {
+            // Migration V2: Ensure YouTube links are always correct for the CT Liver case
+            const data = this.getData();
+            let changed = false;
+            data.cases = data.cases.map(c => {
+                if (c.title.includes("Tri-phasic CT Liver")) {
+                    // Force update if image is wrong or gallery is missing
+                    if (c.image !== "image/ct_liver_cover_1773868347998.png" || !c.gallery || c.gallery.some(l => !l.includes('youtube.com') && !l.includes('youtu.be'))) {
+                        c.image = "image/ct_liver_cover_1773868347998.png";
+                        c.gallery = [
+                            "https://www.youtube.com/watch?v=kgz9EOF4GQQ",
+                            "https://www.youtube.com/shorts/SqejwdoR_VY",
+                            "https://www.youtube.com/shorts/aNuCRGH0rZk"
+                        ];
+                        changed = true;
+                    }
+                }
+                return c;
+            });
+            if (changed) this.saveData(data);
         }
     },
     getData() {
-        this.init();
         return JSON.parse(localStorage.getItem(STORE_KEY));
     },
     saveData(data) {
         localStorage.setItem(STORE_KEY, JSON.stringify(data));
+        // Automatically sync to cloud if active
+        if (typeof Cloud !== 'undefined' && Cloud.isActive()) {
+            Cloud.save('', data);
+            showToast("Syncing with Cloud... ☁️");
+        }
     },
     getProfile() { return this.getData().profile; },
     getModalities() { return this.getData().modalities; },
@@ -127,7 +189,7 @@ const Store = {
     },
     addModality(modData) {
         const data = this.getData();
-        modData.id = crypto.randomUUID();
+        if (!modData.id) modData.id = crypto.randomUUID();
         data.modalities.push(modData);
         this.saveData(data);
     },
@@ -162,7 +224,6 @@ const Store = {
         const data = this.getData();
         data.visitorCount = (data.visitorCount || 0) + 1;
         this.saveData(data);
-        if (Cloud.isActive()) Cloud.save('visitorCount', data.visitorCount);
     },
     updateCloudConfig(config) {
         const data = this.getData();
@@ -210,17 +271,20 @@ Store.incrementVisits();
 document.documentElement.setAttribute('data-theme', Store.getSettings().theme);
 
 // ----- ADMIN.JS -----
-let isAuthenticated = sessionStorage.getItem('admin_auth') === 'true';
+let isAuthenticated = false;
 
 function renderAdmin(container) {
-    isAuthenticated = true; // By user request, bypass login for /admin
-    renderDashboard(container);
+    if (!isAuthenticated) {
+        renderLogin(container);
+    } else {
+        renderDashboard(container);
+    }
 }
 
 function renderLogin(container) {
     container.innerHTML = `
         <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg-base);">
-            <div class="glass-card" style="padding: 3rem; width: 100%; max-width: 400px; text-align: center;">
+            <div class="glass-card admin-login-card" style="width: 100%; max-width: 400px; text-align: center;">
                 <h2 style="margin-bottom: 2rem;">Admin <span style="color:var(--brand-main)">Login</span></h2>
                 <form id="loginForm" style="display: flex; flex-direction: column; gap: 1.5rem;">
                     <input type="password" id="password" placeholder="Enter Password" required class="admin-input">
@@ -246,7 +310,6 @@ function renderLogin(container) {
         const pwd = document.getElementById('password').value;
         if (pwd === 'moh112005') {
             isAuthenticated = true;
-            sessionStorage.setItem('admin_auth', 'true');
             renderDashboard(container);
         } else {
             alert('Incorrect Password');
@@ -322,6 +385,7 @@ function renderDashboard(container) {
                                 ${modalities.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
                             </select>
                             <input type="text" id="caseTags" placeholder="Tags (comma separated)" class="admin-input">
+                            <textarea id="caseGalleryLinks" placeholder="Video/Gallery Links (YouTube URLs, one per line)" class="admin-input" rows="2"></textarea>
                             <input type="file" id="caseImage" class="admin-input" accept="image/*,video/*">
                             <small style="color: var(--text-tertiary); margin-top: -0.5rem;" id="caseImageHint">Leave blank to keep existing image when editing.</small>
                             <label style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); cursor: pointer;">
@@ -577,9 +641,8 @@ function bindAdminEvents(container) {
     });
 
     document.getElementById('logoutBtn').addEventListener('click', () => {
-        sessionStorage.removeItem('admin_auth');
         isAuthenticated = false;
-        renderAdmin(container);
+        window.location.hash = '#hero'; // Redirect to portfolio on logout
     });
 
     document.getElementById('profileForm').addEventListener('submit', async (e) => {
@@ -646,6 +709,7 @@ function bindAdminEvents(container) {
             description: document.getElementById('caseDesc').value,
             modalityId: document.getElementById('caseModality').value,
             tags: document.getElementById('caseTags').value.split(',').map(t => t.trim()).filter(Boolean),
+            gallery: document.getElementById('caseGalleryLinks').value.split('\n').map(l => l.trim()).filter(Boolean),
             isFeatured: document.getElementById('caseFeatured').checked
         };
         
@@ -669,6 +733,7 @@ function bindAdminEvents(container) {
                 document.getElementById('caseDesc').value = c.description;
                 document.getElementById('caseModality').value = c.modalityId;
                 document.getElementById('caseTags').value = (c.tags || []).join(', ');
+                document.getElementById('caseGalleryLinks').value = (c.gallery || []).join('\n');
                 document.getElementById('caseFeatured').checked = c.isFeatured || false;
                 document.getElementById('caseSubmitBtn').textContent = 'Update Case';
                 caseFormContainer.style.display = 'block';
@@ -900,6 +965,7 @@ function renderPortfolio(container) {
                     <a href="#contact">Contact</a>
                 </div>
                 <div class="nav-actions">
+                    <div id="greeting" style="font-size: 0.9rem; font-weight: 600; color: var(--brand-main); margin-right: 1rem; display: none;" class="desktop-only text-reveal"></div>
                     <button class="btn btn-icon-only btn-secondary" id="themeToggle">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -928,28 +994,28 @@ function renderPortfolio(container) {
                     
                     <div class="hero-stats fadeSlideUp" style="animation-delay: 0.4s">
                         <div class="stat-item">
-                            <h3>${profile.totalCases}</h3>
+                            <h3 id="count-cases">0</h3>
                             <p>Cases Analyzed</p>
                         </div>
                         <div class="stat-item">
-                            <h3>${profile.experienceYears}</h3>
+                            <h3 id="count-exp">0</h3>
                             <p>Years Experience</p>
                         </div>
                         <div class="stat-item">
-                            <h3>${modalities.length}</h3>
+                            <h3 id="count-modalities">${modalities.length}</h3>
                             <p>Core Modalities</p>
                         </div>
                     </div>
                 </div>
                 <div class="hero-image float-1">
-                    <img src="${profile.image || 'https://images.unsplash.com/photo-1612349317150-e410f624c4e8?q=80&w=1000'}" alt="${profile.name}">
+                    <img src="image/hero_premium.png" alt="${profile.name}">
                 </div>
             </div>
         </section>
 
         <section id="about" class="container reveal">
             <h2><span style="color:var(--brand-main)">About</span> Me</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center;">
+            <div class="grid-2" style="gap: 4rem; align-items: center;">
                 <div>
                     <p style="font-size: 1.1rem; margin-bottom: 2rem;">${profile.bio}</p>
                     ${profile.cvFile ? `<a href="${profile.cvFile}" download="cv mohamed ali.pdf" class="btn btn-primary glow-btn" style="margin-bottom: 2rem; display: inline-flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-download"></i> cv mohamed ali</a>` : ''}
@@ -1049,15 +1115,36 @@ function renderPortfolio(container) {
                         </div>
                         ${c.isFeatured ? '<div style="position: absolute; top: 1rem; left: 1rem; background: rgba(234, 179, 8, 0.9); color: #fff; padding: 0.4rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem; box-shadow: var(--shadow-md); z-index: 2; backdrop-filter: blur(4px);">⭐ Featured</div>' : ''}
                         <div class="case-media-container">
-                            ${c.image.endsWith('.mp4') || c.image.startsWith('data:video') ? 
-                                `<video src="${c.image}" class="case-image" muted loop playsinline></video>` : 
-                                `<img src="${c.image}" alt="${c.title}" class="case-image">`
-                            }
+                            ${(() => {
+                                const media = c.image;
+                                const youtubeId = getYoutubeId(media);
+                                if (youtubeId) {
+                                    return `
+                                        <div class="youtube-placeholder" style="background: #000; height: 250px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                                            <img src="https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.7;">
+                                            <i class="fa-brands fa-youtube" style="font-size: 4rem; color: #ff0000; position: absolute; z-index: 2; text-shadow: 0 0 20px rgba(0,0,0,0.5);"></i>
+                                            <div style="position: absolute; inset: 0; background: linear-gradient(transparent, rgba(0,0,0,0.5));"></div>
+                                        </div>`;
+                                }
+                                return (media.endsWith('.mp4') || media.startsWith('data:video')) ? 
+                                    `<video src="${media}" class="case-image" muted loop playsinline></video>` : 
+                                    `<img src="${media}" alt="${c.title}" class="case-image">`;
+                            })()}
                             ${c.gallery && c.gallery.length > 1 ? `<div class="gallery-badge"><i class="fa-solid fa-images"></i> ${c.gallery.length} Media</div>` : ''}
                         </div>
                         <div class="case-content">
                             <h4>${c.title}</h4>
                             <p style="font-size: 0.9rem; margin: 0.5rem 0 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.description}</p>
+                            <div style="margin-bottom: 1rem;">
+                                ${getYoutubeId(c.image) || (c.gallery && c.gallery.some(l => getYoutubeId(l))) ? 
+                                    `<span class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.8rem; width: 100%; justify-content: center;">
+                                        <i class="fa-solid fa-play"></i> Watch Case
+                                     </span>` : 
+                                    `<span class="btn btn-secondary" style="padding: 0.4rem 1rem; font-size: 0.8rem; width: 100%; justify-content: center;">
+                                        <i class="fa-solid fa-image"></i> View Details
+                                     </span>`
+                                }
+                            </div>
                             <div class="case-tags">
                                 ${c.tags.map(t => `<span class="tag">#${t}</span>`).join('')}
                             </div>
@@ -1206,6 +1293,7 @@ function initializeInteractions() {
     const navLinks = document.getElementById('navLinks');
     mobileBtn.addEventListener('click', () => {
         navLinks.classList.toggle('active');
+        mobileBtn.style.zIndex = "1001"; // Ensure button is above the menu
         mobileBtn.innerHTML = navLinks.classList.contains('active') 
             ? '<i class="fa-solid fa-xmark"></i>' 
             : '<i class="fa-solid fa-bars"></i>';
@@ -1215,10 +1303,9 @@ function initializeInteractions() {
     const navItems = navLinks.querySelectorAll('a');
     navItems.forEach(item => {
         item.addEventListener('click', () => {
-            if(navLinks.classList.contains('active')) {
-                navLinks.classList.remove('active');
-                mobileBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
-            }
+            navLinks.classList.remove('active');
+            mobileBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+            mobileBtn.style.zIndex = ""; // Reset z-index
         });
     });
 
@@ -1288,12 +1375,35 @@ function initializeInteractions() {
         const gallery = c.gallery || [c.image];
         let currentIdx = 0;
 
+
         const updateModalMedia = () => {
             const media = gallery[currentIdx];
-            const isVideo = media.endsWith('.mp4') || media.startsWith('data:video');
-            const mediaHtml = isVideo ? 
-                `<video src="${media}" controls autoplay muted class="enlarged-media"></video>` : 
-                `<img src="${media}" alt="${c.title}" class="enlarged-media">`;
+            let mediaHtml;
+            
+            const youtubeId = getYoutubeId(media);
+            if (youtubeId) {
+                // Use a more robust embed URL with mute=1 to ensure autoplay works and origin for safety
+                const embedUrl = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+                mediaHtml = `
+                    <div class="video-container" style="position:relative; width:100%; height:500px; background:#000;">
+                        <iframe src="${embedUrl}" 
+                            class="enlarged-media" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            allowfullscreen 
+                            style="width: 100%; height: 100%; border:none;">
+                        </iframe>
+                        <div style="position:absolute; bottom:10px; right:10px;">
+                            <a href="https://youtube.com/watch?v=${youtubeId}" target="_blank" class="btn btn-secondary" style="font-size:0.7rem; padding:0.4rem 0.8rem; background:rgba(0,0,0,0.6); color:#fff; border:none;">
+                                <i class="fa-brands fa-youtube"></i> Open on YouTube
+                            </a>
+                        </div>
+                    </div>`;
+            } else if (media.endsWith('.mp4') || media.startsWith('data:video')) {
+                mediaHtml = `<video src="${media}" controls autoplay muted class="enlarged-media"></video>`;
+            } else {
+                mediaHtml = `<img src="${media}" alt="${c.title}" class="enlarged-media">`;
+            }
             
             modalBody.querySelector('.modal-media').innerHTML = `
                 ${mediaHtml}
@@ -1360,10 +1470,83 @@ function initializeInteractions() {
         });
     });
 
-    closeModalBtn.addEventListener('click', closeCaseModal);
-    caseModal.addEventListener('click', (e) => {
-        if(e.target === caseModal) closeCaseModal();
-    });
+    // --- REFACTORED MODAL EVENTS ---
+    // Use delegation on the modal itself for better reliability
+    if (caseModal) {
+        caseModal.addEventListener('click', (e) => {
+            // Close if clicking the background OR the close button
+            if (e.target.id === 'caseModal' || e.target.id === 'closeModalBtn' || e.target.closest('#closeModalBtn')) {
+                closeCaseModal();
+            }
+        });
+    }
+
+    // --- PREMIUM FEATURES ---
+    
+    // 1. Custom Cursor
+    const cursor = document.getElementById('custom-cursor');
+    if (cursor && window.innerWidth > 1024) {
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
+
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.closest('a, button, .case-card, .btn')) {
+                cursor.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                cursor.style.background = 'var(--brand-glow)';
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            if (e.target.closest('a, button, .case-card, .btn')) {
+                cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+                cursor.style.background = 'var(--brand-main)';
+            }
+        });
+    }
+
+    // 2. Dynamic Greeting
+    const greetingEl = document.getElementById('greeting');
+    if (greetingEl) {
+        const hour = new Date().getHours();
+        let msg = "Hello!";
+        if (hour < 12) msg = "Good Morning ☀️";
+        else if (hour < 18) msg = "Good Afternoon ☕";
+        else msg = "Good Evening 🌙";
+        greetingEl.textContent = msg;
+        greetingEl.style.display = 'block';
+    }
+
+    // 3. Counter Animation
+    const animateValue = (id, start, end, duration) => {
+        const obj = document.getElementById(id);
+        if (!obj) return;
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            obj.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString() + "+";
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    };
+
+    // Trigger counters on reveal
+    const counterObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                if (entry.target.id === 'count-cases') animateValue('count-cases', 0, parseInt(Store.getProfile().totalCases), 2000);
+                if (entry.target.id === 'count-exp') animateValue('count-exp', 0, parseInt(Store.getProfile().experienceYears), 2000);
+                counterObserver.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.5 });
+
+    if (document.getElementById('count-cases')) counterObserver.observe(document.getElementById('count-cases'));
+    if (document.getElementById('count-exp')) counterObserver.observe(document.getElementById('count-exp'));
 }
 
 // ----- APP.JS (ROUTER) -----
