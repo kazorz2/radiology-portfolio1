@@ -224,6 +224,10 @@ const Store = {
         const data = this.getData();
         data.visitorCount = (data.visitorCount || 0) + 1;
         this.saveData(data);
+        // Use atomic increment if cloud is active
+        if (Cloud.isActive()) {
+            Cloud.db.ref('portfolio/visitorCount').set(firebase.database.ServerValue.increment(1));
+        }
     },
     updateCloudConfig(config) {
         const data = this.getData();
@@ -251,17 +255,62 @@ const Cloud = {
     isActive() { return !!this.db; },
     async syncAll() {
         if (!this.isActive()) return;
-        const snapshot = await this.db.ref('portfolio').once('value');
-        if (snapshot.exists()) {
-            const cloudData = snapshot.val();
-            const localData = Store.getData();
-            // Merge cloud data into local (Cloud wins for reviews and profile)
-            const merged = { ...localData, ...cloudData };
-            Store.saveData(merged);
-        }
+        
+        // Use a real-time listener for instant updates
+        this.db.ref('portfolio').on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                const cloudData = snapshot.val();
+                const localData = Store.getData();
+                
+                // --- SMART MERGE LOGIC ---
+                // We merge cloud data into local, but for arrays, we combine them to prevent loss
+                const merged = { ...localData, ...cloudData };
+                
+                // Merge Testimonials (Reviews)
+                if (cloudData.testimonials) {
+                    const localTests = localData.testimonials || [];
+                    const cloudTests = cloudData.testimonials || [];
+                    // Combine and remove duplicates by ID
+                    const testMap = new Map();
+                    [...localTests, ...cloudTests].forEach(t => testMap.set(t.id, t));
+                    merged.testimonials = Array.from(testMap.values());
+                }
+
+                // Merge Cases (if needed)
+                if (cloudData.cases) {
+                    const caseMap = new Map();
+                    [...(localData.cases || []), ...cloudData.cases].forEach(c => caseMap.set(c.id, c));
+                    merged.cases = Array.from(caseMap.values());
+                }
+                
+                // Solve the visitor count: Cloud version is always truth
+                merged.visitorCount = Math.max(localData.visitorCount || 0, cloudData.visitorCount || 0);
+                
+                const oldDataStr = JSON.stringify(localData);
+                const newDataStr = JSON.stringify(merged);
+
+                if (oldDataStr !== newDataStr) {
+                    localStorage.setItem(Store.STORE_KEY, newDataStr);
+                    console.log("🔄 Real-time Cloud Sync: Data Merged & Updated");
+                    
+                    // Simple logic to trigger UI refresh if not in Admin Panel
+                    if (window.location.hash !== '#admin') {
+                        // Debounced refresh to avoid flickering
+                        if (window.syncRefreshTimeout) clearTimeout(window.syncRefreshTimeout);
+                        window.syncRefreshTimeout = setTimeout(() => {
+                            if (typeof router === 'function') router();
+                        }, 500);
+                    }
+                }
+            }
+        });
     },
     save(path, data) {
-        if (this.isActive()) this.db.ref('portfolio/' + path).set(data);
+        if (this.isActive()) {
+            // If path is empty, we are saving the whole object
+            const target = path ? 'portfolio/' + path : 'portfolio';
+            this.db.ref(target).set(data);
+        }
     }
 };
 
