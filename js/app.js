@@ -1,5 +1,5 @@
 // ----- STORE.JS -----
-const STORE_KEY = "mohamed_portfolio_data_v5";
+const STORE_KEY = "mohamed_portfolio_data_v11";
 
 const defaultData = {
     profile: {
@@ -29,6 +29,18 @@ const defaultData = {
     ],
     cases: [
         { id: crypto.randomUUID(), title: "Brain MRI Analysis 🧠", description: "Detailed MRI scan highlighting normal tissue contrast.", modalityId: "mri", tags: ["Brain", "Contrast"], image: "https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&w=800&q=80", isFeatured: true },
+        { 
+            id: crypto.randomUUID(), 
+            title: "Tri-phasic CT Liver | فحص ثلاثي المراحل للكبد 🩺", 
+            description: "Arabic:\nالعنوان: فحص أشعة مقطعية ثلاثي المراحل على الكبد (Tri-phasic CT Liver).\nالتفاصيل الفنية: أشعة مقطعية بالصبغة باستخدام بروتوكول لمراحل الثلاث (Arterial, Portal, Delayed).\n\nEnglish:\nDynamic Tri-phasic CT Scan of the Liver. Multi-detector CT evaluation using a dedicated tri-phasic contrast protocol. Essential for characterizing focal liver lesions.", 
+            modalityId: "ct", 
+            tags: ["Liver", "Contrast", "Tri-phasic"], 
+            image: "vides/VID_20260315_180402.mp4",
+            gallery: ["vides/VID_20260315_180402.mp4", "vides/VID_20260315_180459.mp4", "vides/VID-20260315-WA0018.mp4"],
+            isFeatured: true 
+        },
+        { id: crypto.randomUUID(), title: "Digital X-ray Lower Limb (Anatomical) 🦴", description: "Standing full-leg digital X-ray for precise limb length evaluation (LLD). Clear anatomical landmarks from pelvis to ankle.", modalityId: "xray", tags: ["X-ray", "LLD", "Anatomical"], image: "image/anatomical angel.png", isFeatured: true },
+        { id: crypto.randomUUID(), title: "Digital X-ray Lower Limb (Mechanical) 🦴", description: "Advanced mechanical axis analysis with precise angles (90.9° & 85.3°) for orthopedic surgical planning.", modalityId: "xray", tags: ["X-ray", "Mechanical Axis", "Orthopedic"], image: "image/mechanical angel.png", isFeatured: true },
         { id: crypto.randomUUID(), title: "Cervical Spine MRI 🧠", description: "Spinal cord evaluation without contrast.", modalityId: "mri", tags: ["Spine", "Cervical"], image: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80", isFeatured: false },
         { id: crypto.randomUUID(), title: "Chest CT Scan 💻", description: "High-resolution computed tomography of the lungs.", modalityId: "ct", tags: ["Chest", "Lungs"], image: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80", isFeatured: true },
         { id: crypto.randomUUID(), title: "Abdomen CT Scan 💻", description: "Routine abdominal scan.", modalityId: "ct", tags: ["Abdomen"], image: "https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=800&q=80", isFeatured: false }
@@ -1031,15 +1043,18 @@ function renderPortfolio(container) {
 
             <div class="grid-3 cases-grid">
                 ${cases.map(c => `
-                    <div class="glass-card case-card" data-modality="${c.modalityId}" data-title="${c.title.toLowerCase()}">
+                    <div class="glass-card case-card" data-id="${c.id}" data-modality="${c.modalityId}" data-title="${c.title.toLowerCase()}">
                         <div class="case-modality">
                             ${modalities.find(m => m.id === c.modalityId)?.icon} ${modalities.find(m => m.id === c.modalityId)?.name}
                         </div>
                         ${c.isFeatured ? '<div style="position: absolute; top: 1rem; left: 1rem; background: rgba(234, 179, 8, 0.9); color: #fff; padding: 0.4rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem; box-shadow: var(--shadow-md); z-index: 2; backdrop-filter: blur(4px);">⭐ Featured</div>' : ''}
-                        ${c.image.startsWith('data:video') ? 
-                            `<video src="${c.image}" class="case-image" controls preload="metadata"></video>` : 
-                            `<img src="${c.image}" alt="${c.title}" class="case-image">`
-                        }
+                        <div class="case-media-container">
+                            ${c.image.endsWith('.mp4') || c.image.startsWith('data:video') ? 
+                                `<video src="${c.image}" class="case-image" muted loop playsinline></video>` : 
+                                `<img src="${c.image}" alt="${c.title}" class="case-image">`
+                            }
+                            ${c.gallery && c.gallery.length > 1 ? `<div class="gallery-badge"><i class="fa-solid fa-images"></i> ${c.gallery.length} Media</div>` : ''}
+                        </div>
                         <div class="case-content">
                             <h4>${c.title}</h4>
                             <p style="font-size: 0.9rem; margin: 0.5rem 0 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.description}</p>
@@ -1120,6 +1135,15 @@ function renderPortfolio(container) {
             <i class="fa-brands fa-whatsapp"></i>
         </a>
 
+        <div id="caseModal" class="modal-overlay">
+            <div class="modal-container glass-card">
+                <button class="modal-close" id="closeModalBtn">&times;</button>
+                <div id="modalBody" class="modal-body">
+                    <!-- Dynamic content here -->
+                </div>
+            </div>
+        </div>
+
         <footer style="background: var(--bg-surface); padding: 4rem 0; text-align: center; border-top: 1px solid var(--border-glass);">
             <div class="container">
                 <p style="color: var(--text-tertiary); margin-bottom: 1.5rem;">
@@ -1187,6 +1211,17 @@ function initializeInteractions() {
             : '<i class="fa-solid fa-bars"></i>';
     });
 
+    // Close mobile menu when a link is clicked
+    const navItems = navLinks.querySelectorAll('a');
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            if(navLinks.classList.contains('active')) {
+                navLinks.classList.remove('active');
+                mobileBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+            }
+        });
+    });
+
     window.addEventListener('scroll', () => {
         const nav = document.getElementById('navbar');
         if(window.scrollY > 50) nav.classList.add('scrolled');
@@ -1239,6 +1274,96 @@ function initializeInteractions() {
     if(searchInput) {
         searchInput.addEventListener('input', renderVisibilities);
     }
+
+    // Modal Logic
+    const caseModal = document.getElementById('caseModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalBody = document.getElementById('modalBody');
+
+    const openCaseModal = (caseId) => {
+        const c = Store.getCases().find(x => x.id === caseId);
+        if(!c) return;
+
+        const modality = Store.getModalities().find(m => m.id === c.modalityId);
+        const gallery = c.gallery || [c.image];
+        let currentIdx = 0;
+
+        const updateModalMedia = () => {
+            const media = gallery[currentIdx];
+            const isVideo = media.endsWith('.mp4') || media.startsWith('data:video');
+            const mediaHtml = isVideo ? 
+                `<video src="${media}" controls autoplay muted class="enlarged-media"></video>` : 
+                `<img src="${media}" alt="${c.title}" class="enlarged-media">`;
+            
+            modalBody.querySelector('.modal-media').innerHTML = `
+                ${mediaHtml}
+                ${gallery.length > 1 ? `
+                    <button class="gallery-nav prev" id="prevMedia"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button class="gallery-nav next" id="nextMedia"><i class="fa-solid fa-chevron-right"></i></button>
+                    <div class="gallery-counter">${currentIdx + 1} / ${gallery.length}</div>
+                ` : ''}
+            `;
+
+            // Re-bind arrows
+            if(gallery.length > 1) {
+                document.getElementById('prevMedia').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentIdx = (currentIdx - 1 + gallery.length) % gallery.length;
+                    updateModalMedia();
+                });
+                document.getElementById('nextMedia').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentIdx = (currentIdx + 1) % gallery.length;
+                    updateModalMedia();
+                });
+            }
+        };
+
+        modalBody.innerHTML = `
+            <div class="modal-header">
+                <div class="case-modality" style="position:static; margin-bottom: 1rem; display: inline-block;">
+                    ${modality?.icon} ${modality?.name}
+                </div>
+                ${c.isFeatured ? '<span class="badge" style="margin-left: 1rem;">⭐ Featured</span>' : ''}
+            </div>
+            <div class="modal-media">
+                <!-- Media injected by updateModalMedia -->
+            </div>
+            <div class="modal-info">
+                <h2 style="color: var(--brand-main); margin: 1.5rem 0 1rem; font-size: 1.8rem;">${c.title}</h2>
+                <div style="font-size: 1.1rem; color: var(--text-primary); line-height: 1.8; margin-bottom: 1.5rem; white-space: pre-line;">${c.description}</div>
+                <div class="case-tags">
+                    ${c.tags.map(t => `<span class="tag">#${t}</span>`).join('')}
+                </div>
+            </div>
+        `;
+        
+        updateModalMedia();
+        caseModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    };
+
+    const closeCaseModal = () => {
+        caseModal.classList.remove('active');
+        document.body.style.overflow = 'auto';
+        // Pause video if any
+        const video = modalBody.querySelector('video');
+        if(video) video.pause();
+    };
+
+    document.querySelectorAll('.case-card').forEach(card => {
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', (e) => {
+            // Don't open if clicked on a direct child link or button if any (none currently)
+            const id = card.getAttribute('data-id');
+            if(id) openCaseModal(id);
+        });
+    });
+
+    closeModalBtn.addEventListener('click', closeCaseModal);
+    caseModal.addEventListener('click', (e) => {
+        if(e.target === caseModal) closeCaseModal();
+    });
 }
 
 // ----- APP.JS (ROUTER) -----
