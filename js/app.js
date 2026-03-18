@@ -136,11 +136,20 @@ const Store = {
         return JSON.parse(localStorage.getItem(STORE_KEY));
     },
     saveData(data) {
-        localStorage.setItem(STORE_KEY, JSON.stringify(data));
-        // Automatically sync to cloud if active
-        if (typeof Cloud !== 'undefined' && Cloud.isActive()) {
-            Cloud.save('', data);
-            showToast("Syncing with Cloud... ☁️");
+        try {
+            localStorage.setItem(STORE_KEY, JSON.stringify(data));
+            // Automatically sync to cloud if active
+            if (typeof Cloud !== 'undefined' && Cloud.isActive()) {
+                Cloud.save('', data);
+                showToast("Syncing with Cloud... ☁️");
+            }
+        } catch (e) {
+            console.error("Save Error:", e);
+            if (e.name === 'QuotaExceededError') {
+                alert("Storage limit reached! Please use smaller images or compress them before uploading.");
+            } else {
+                alert("An error occurred while saving your changes.");
+            }
         }
     },
     getProfile() { return this.getData().profile; },
@@ -290,7 +299,7 @@ const Cloud = {
                 const newDataStr = JSON.stringify(merged);
 
                 if (oldDataStr !== newDataStr) {
-                    localStorage.setItem(Store.STORE_KEY, newDataStr);
+                    localStorage.setItem(STORE_KEY, newDataStr);
                     console.log("🔄 Real-time Cloud Sync: Data Merged & Updated");
                     
                     // Simple logic to trigger UI refresh if not in Admin Panel
@@ -1014,7 +1023,7 @@ function renderPortfolio(container) {
                     <a href="#contact">Contact</a>
                 </div>
                 <div class="nav-actions">
-                    <div id="greeting" style="font-size: 0.9rem; font-weight: 600; color: var(--brand-main); margin-right: 1rem;" class="desktop-only text-reveal"></div>
+
                     <button class="btn btn-icon-only btn-secondary" id="themeToggle">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -1292,7 +1301,7 @@ function renderPortfolio(container) {
                     </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-glass); padding-top: 2rem; flex-wrap: wrap; gap: 1rem;">
-                    <p>&copy; ${new Date().getFullYear()} ${profile.name}. All rights reserved.</p>
+                    <p>&copy; ${new Date().getFullYear()} ${profile.name}. All rights reserved.<span class="hidden-heart" id="mayarTrigger">❤</span></p>
                     <div style="display: flex; gap: 1.5rem; align-items: center;">
                         <a href="#admin" style="display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text-tertiary); font-size: 0.9rem; transition: color 0.3s;" id="footerAdminLock">
                             <i class="fa-solid fa-lock" style="font-size: 0.8rem;"></i> Admin
@@ -1555,16 +1564,7 @@ function initializeInteractions() {
         });
     }
 
-    // 2. Dynamic Greeting
-    const greetingEl = document.getElementById('greeting');
-    if (greetingEl) {
-        const hour = new Date().getHours();
-        let msg = "Hello!";
-        if (hour < 12) msg = "Good Morning ☀️";
-        else if (hour < 18) msg = "Good Afternoon ☕";
-        else msg = "Good Evening 🌙";
-        greetingEl.textContent = msg;
-    }
+
 
     // 3. Counter Animation
     const animateValue = (id, start, end, duration) => {
@@ -1595,6 +1595,57 @@ function initializeInteractions() {
 
     if (document.getElementById('count-cases')) counterObserver.observe(document.getElementById('count-cases'));
     if (document.getElementById('count-exp')) counterObserver.observe(document.getElementById('count-exp'));
+
+    // 4. Mayar Easter Egg
+    const mayarTrigger = document.getElementById('mayarTrigger');
+    if (mayarTrigger) {
+        mayarTrigger.addEventListener('click', () => {
+            const pass = prompt("Enter Secret Key:");
+            if (pass && pass.toLowerCase() === 'mayar') {
+                triggerMayarSurprise();
+            }
+        });
+    }
+
+    function triggerMayarSurprise() {
+        // Create Love Overlay if not exists
+        let overlay = document.getElementById('loveOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'loveOverlay';
+            overlay.className = 'love-overlay';
+            overlay.innerHTML = '<div class="love-message">I Really Love You ❤️</div>';
+            document.body.appendChild(overlay);
+        }
+
+        // Show Overlay
+        overlay.classList.add('active');
+        
+        // Falling Roses - Adaptive count for mobile
+        const isMobile = window.innerWidth < 768;
+        const roseCount = isMobile ? 30 : 70;
+        const symbols = ['🌹', '🌸', '❤️', '🌺', '🌷', '✨', '💖', '💘', '🤍'];
+        for (let i = 0; i < roseCount; i++) {
+            setTimeout(() => {
+                const rose = document.createElement('div');
+                rose.className = 'rose-particle';
+                rose.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                rose.style.left = Math.random() * 100 + 'vw';
+                rose.style.animationDuration = (Math.random() * 4 + 2) + 's';
+                rose.style.fontSize = (Math.random() * 1.5 + 1) + 'rem';
+                rose.style.opacity = Math.random() * 0.5 + 0.5;
+                document.body.appendChild(rose);
+                
+                // Remove after animation
+                setTimeout(() => rose.remove(), 5000);
+            }, i * 100);
+        }
+
+        // Hide Overlay after 6 seconds
+        setTimeout(() => {
+            overlay.classList.remove('active');
+        }, 6000);
+    }
 }
 
 // ----- APP.JS (ROUTER) -----

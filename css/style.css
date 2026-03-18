@@ -1122,3 +1122,78 @@ section {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* --- EASTER EGG: MAYAR --- */
+.hidden-heart {
+    opacity: 0.1;
+    cursor: pointer;
+    transition: opacity 0.5s;
+    user-select: none;
+    font-size: 0.9rem;
+    padding: 10px; /* Increased tap area for mobile */
+    margin: -10px 0 -10px 0.5rem; /* Offset padding to keep layout stable */
+    display: inline-block;
+}
+
+.hidden-heart:hover {
+    opacity: 0.5;
+}
+
+.rose-particle {
+    position: fixed;
+    top: -50px;
+    font-size: 1.5rem;
+    pointer-events: none;
+    z-index: 9999;
+    animation: fall linear forwards;
+}
+
+@keyframes fall {
+    to {
+        transform: translateY(110vh) rotate(360deg);
+    }
+}
+
+.love-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 1s;
+    pointer-events: none;
+}
+
+.love-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+    animation: pulse-love 4s infinite;
+}
+
+@keyframes pulse-love {
+    0%, 100% { background: rgba(0, 0, 0, 0.7); }
+    50% { background: rgba(255, 77, 109, 0.15); }
+}
+
+.love-message {
+    color: white;
+    font-size: clamp(1.8rem, 10vw, 4rem);
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    text-align: center;
+    padding: 0 1.5rem;
+    text-shadow: 0 0 20px #ff4d6d, 0 0 40px rgba(0,0,0,0.5);
+    transform: scale(0.8);
+    transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 2;
+}
+
+
+.love-overlay.active .love-message {
+    transform: scale(1);
+}
+
