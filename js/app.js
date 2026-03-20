@@ -116,11 +116,11 @@ const firebaseConfig = {
   measurementId: "G-5GRL3TQFZE"
 };
 
-// السطر ده مهم جداً عشان الموقع يبرمج نفسه تلقائي
+// تشغيل الربط تلقائياً
 localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
 
-
-localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+// الجزء ده عشان يضمن إن الموقع يقرأ الحالات أول ما يفتح
+const STORE_KEY = 'radiology_portfolio_data';
 
 
 const Store = {
