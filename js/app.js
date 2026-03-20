@@ -105,6 +105,19 @@ const defaultData = {
         theme: "dark"
     }
 };
+const firebaseConfig = {
+  apiKey: "AIzaSyANhAfYD-s4PCcdYN0qq5I6XPzqZ36UsUs",
+  authDomain: "mohamed-radiology.firebaseapp.com",
+  databaseURL: "https://mohamed-radiology-default-rtdb.firebaseio.com",
+  projectId: "mohamed-radiology",
+  storageBucket: "mohamed-radiology.firebasestorage.app",
+  messagingSenderId: "815693498488",
+  appId: "1:815693498488:web:73d4834d729e4ced8f858d",
+  measurementId: "G-5GRL3TQFZE"
+};
+
+localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+
 
 const Store = {
     init() {
