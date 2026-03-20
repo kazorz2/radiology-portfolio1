@@ -116,6 +116,10 @@ const firebaseConfig = {
   measurementId: "G-5GRL3TQFZE"
 };
 
+// السطر ده مهم جداً عشان الموقع يبرمج نفسه تلقائي
+localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
+
+
 localStorage.setItem('firebaseConfig', JSON.stringify(firebaseConfig));
 
 
